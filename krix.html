@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Krix | Bolt Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0d1117;
+            --bg-sidebar: #010409;
+            --bg-menu: #1c2128;
+            --border-color: #30363d;
+            --text-main: #e6edf3;
+            --text-muted: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-red: #ff7b72;
+            --code-bg: #161b22;
+            --user-bubble: #1f2937;
+            --selection: #1f6feb;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 260px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: sidebarSlide 0.6s ease-out;
+            position: relative; /* For absolute positioning of the hidden trash button */
+        }
+
+        @keyframes sidebarSlide {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        #sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        #new-chat-btn {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            text-align: left;
+            transition: background 0.2s;
+        }
+
+        #new-chat-btn:hover { background-color: #161b22; }
+
+        #clear-all-btn {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            width: 38px;
+            height: 38px;
+            background: var(--bg-menu);
+            color: var(--accent-red);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: none; /* Only toggleable by Alt+Del */
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+
+        #clear-all-btn:hover {
+            background-color: var(--accent-red);
+            color: white;
+            border-color: var(--accent-red);
+        }
+
+        #session-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .session-item {
+            padding: 10px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+
+        .session-item:hover { background-color: #161b22; color: var(--text-main); }
+        .session-item.active { background-color: #1f2937; color: var(--text-main); }
+
+        /* Context Menu */
+        #context-menu {
+            display: none;
+            position: fixed;
+            background: var(--bg-menu);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 5px 0;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            min-width: 120px;
+        }
+        .menu-item {
+            padding: 8px 16px;
+            font-size: 13px;
+            cursor: pointer;
+            color: var(--text-main);
+        }
+        .menu-item:hover { background-color: var(--accent-blue); color: white; }
+        .menu-item.delete { color: var(--accent-red); }
+
+        /* Main Content */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        #chat-header {
+            height: 50px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+        }
+
+        #chat-header h1 {
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            color: var(--text-main);
+        }
+
+        #chat-display {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px 20%;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        @media (max-width: 1000px) { #chat-display { padding: 40px 5%; } }
+
+        /* Messages */
+        .message { display: flex; flex-direction: column; gap: 8px; animation: messageFadeIn 0.4s ease-out; }
+        @keyframes messageFadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        .message-role { font-weight: bold; font-size: 14px; }
+        .role-user { color: #d29922; }
+        .role-assistant { color: var(--accent-blue); }
+
+        .message-content { font-size: 15px; line-height: 1.6; word-wrap: break-word; }
+
+        /* Markdown elements */
+        .message-content h1 { font-size: 1.5em; margin: 10px 0; border-bottom: 1px solid var(--border-color); }
+        .message-content h2 { font-size: 1.3em; margin: 8px 0; }
+        .message-content h3 { font-size: 1.1em; margin: 6px 0; }
+        .message-content code:not(pre code) { background: #30363d; padding: 2px 4px; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 0.9em; }
+
+        /* Code Blocks */
+        .code-container {
+            background-color: #0d1117;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+
+        .code-header {
+            background-color: #161b22;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .code-lang { font-family: 'Fira Code', monospace; font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+        .copy-btn {
+            background: #21262d;
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .copy-btn:hover { background: #30363d; }
+
+        pre { padding: 16px; overflow-x: auto; font-family: 'Fira Code', monospace; font-size: 13px; }
+
+        /* Bolt Syntax Highlighting */
+        .bolt-keyword { color: #C586C0; }
+        .bolt-builtin { color: #4EC9B0; }
+        .bolt-string { color: #CE9178; }
+        .bolt-number { color: #B5CEA8; }
+        .bolt-comment { color: #6A9955; font-style: italic; }
+        .bolt-function { color: #DCDCAA; }
+        .bolt-variable { color: #9CDCFE; }
+        .bolt-operator { color: #D4D4D4; }
+        .bolt-module { color: #D16969; }
+        
+        /* Refined Syntax highlight for dot notation */
+        .bolt-builtin-method { color: #4EC9B0; font-weight: bold; }
+        .bolt-sys-call { color: #9CDCFE; border-bottom: 1px dotted #58a6ff; }
+
+        /* Input Area */
+        #input-area {
+            padding: 20px 20%;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-main);
+        }
+
+        .input-wrapper {
+            position: relative;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-main);
+            transition: border-color 0.2s;
+        }
+
+        .input-wrapper:focus-within { border-color: var(--accent-blue); }
+
+        #prompt-input {
+            width: 100%;
+            min-height: 60px;
+            max-height: 200px;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+        }
+
+        #send-btn {
+            position: absolute;
+            right: 10px;
+            bottom: 10px;
+            padding: 8px 16px;
+            background: linear-gradient(180deg, #58a6ff 0%, #0078d4 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        #send-btn.stop {
+            background: linear-gradient(180deg, #ff7b72 0%, #d83b01 100%);
+        }
+
+        #send-btn:hover { filter: brightness(1.1); }
+        #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Thinking Indicator */
+        .thinking-dots {
+            display: flex;
+            gap: 6px;
+            padding: 10px 0;
+        }
+        .dot {
+            width: 8px;
+            height: 8px;
+            background: var(--accent-blue);
+            border-radius: 50%;
+            animation: pulse 1.4s infinite ease-in-out both;
+        }
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        .dot:nth-child(3) { animation-delay: 0s; }
+        @keyframes pulse { 0%, 80%, 100% { transform: scale(0); opacity: 0.2; } 40% { transform: scale(1); opacity: 1; } }
+
+
+        .disclaimer { text-align: center; font-size: 11px; color: var(--text-muted); margin-top: 10px; }
+
+        /* Welcome screen */
+        #welcome {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+
+        #welcome h2 { font-size: 32px; letter-spacing: 4px; margin-bottom: 10px; }
+        #welcome p { color: var(--text-muted); font-size: 16px; }
+        #status-indicator { font-family: monospace; font-size: 12px; color: var(--accent-blue); margin-top: 20px; text-transform: uppercase; }
+
+        /* Custom Modal Styles */
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        #modal-box {
+            background: var(--bg-menu);
+            border: 1px solid var(--border-color);
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            animation: modalScale 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        @keyframes modalScale {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .modal-input {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: white;
+            margin: 15px 0 20px 0;
+            outline: none;
+        }
+        .modal-input:focus { border-color: var(--accent-blue); }
+        .modal-btn {
+            padding: 8px 20px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .modal-btn-primary { background: var(--accent-blue); color: white; border: none; }
+        .modal-btn-primary:hover { filter: brightness(1.1); }
+        .modal-btn-secondary { background: transparent; color: var(--text-muted); border: 1px solid var(--border-color); }
+        .modal-btn-secondary:hover { background: rgba(255,255,255,0.05); }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div id="account-section">
+            <div id="account-icon">👤</div>
+            <div id="account-info">
+                <div id="account-name">Guest</div>
+                <button id="signup-btn">Sign Up</button>
+            </div>
+        </div>
+        <div id="sidebar-header">
+            <button id="new-chat-btn">+ New Chat</button>
+        </div>
+        <div id="session-list"></div>
+        <button id="clear-all-btn" title="Clear All Chats (Alt+Del)">🗑️</button>
+    </div>
+
+    <div id="context-menu">
+        <div class="menu-item" id="menu-rename">Rename</div>
+        <div class="menu-item delete" id="id-menu-delete">Delete</div>
+    </div>
+
+    <!-- Custom Modal Structure -->
+    <div id="modal-overlay">
+        <div id="modal-box">
+            <h3 id="modal-message" style="font-size: 16px; font-weight: 600;"></h3>
+            <input type="text" id="modal-input" class="modal-input">
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="modal-cancel" class="modal-btn modal-btn-secondary">Cancel</button>
+                <button id="modal-ok" class="modal-btn modal-btn-primary">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main-content">
+        <div id="chat-header">
+            <h1>KRIX</h1>
+        </div>
+        
+        <div id="chat-display">
+            <div id="welcome">
+                <h2>KRIX</h2>
+                <p>Your professional Bolt writer.</p>
+                <div id="status-indicator">Initializing documentation...</div>
+            </div>
+        </div>
+
+        <div id="input-area">
+            <div class="input-wrapper">
+                <textarea id="prompt-input" placeholder="Ask anything about Bolt..."></textarea>
+                <button id="send-btn">SEND</button>
+            </div>
+            <p class="disclaimer">Krix may display inaccurate info, so double-check its responses.</p>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- Firebase Integration ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
+        import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA-fO83wQs76aQg73wjOIL7VsIYqwsIV_M",
+            authDomain: "hypercloudaistudio.firebaseapp.com",
+            projectId: "hypercloudaistudio",
+            storageBucket: "hypercloudaistudio.firebasestorage.app",
+            messagingSenderId: "18172099514",
+            appId: "1:18172099514:web:f82ce5db8e34a2a243fb83",
+            measurementId: "G-RXH6W6F742"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const auth = getAuth(app);
+
+        // --- Configuration & Constants ---
+        const HF_TOKEN = "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"; // Ported from Python
+        const API_URL = "https://router.huggingface.co/v1/chat/completions";
+        const MODEL = "Qwen/Qwen2.5-Coder-7B-Instruct";
+
+        const BASE_SYSTEM_PROMPT = `
+YOURSELF: You are Krix, the Bolt assistant for HyperCloud Intelligence.
+Your identity: You are Krix, the Bolt assistant for HyperCloud Intelligence. You were made by Hypercloud Intelligence
+to support Swifteex Studio with AI. You are meant to write BOLT code only and never go outside of the Bolt ecosystem. NEVER WRITE OR PROVIDE 
+ANY CODE OF OTHER PROGRAMMING LANGUAGE. MUST BE STRICTLY IN BOLT ECOSYSTEM NO UNFAMILIAR NON-BOLT OR RELATED QUESTION SHOULD BE KINDLY DENIED. You are a helpful assistant for Bolt programming tasks. You are designed to be concise, clear, and practical.
+like random who, why, how question outside bolt shall be politely denied with a short message that you are made for Bolt only. You should never provide destructive information, and should kindly deny even if forced. You should never answer questions unrelated to Bolt and its ecosystem. Always stay in the Bolt context. You should never invent Bolt syntax, modules, system features, or runtime behavior that is not supported by the provided Bolt docs. If the docs do not explicitly describe a requested feature, kindly say that it does not exist in Bolt as documented here. You may suggest the closest documented alternative if one exists. When asked about Bolt, describe it in a professional, detailed tone. Keep the description polished, clear, and accurate. Avoid sounding casual when giving the official language description. Be casual when talking in a casual conversation.
+YOU ARE MANAGED AND MAINTAINED BY SWIFTEEX STUDIO.
+
+Bolt identity:
+- Bolt is a programming language made by Swifteex Studio.
+- Bolt is designed to be lightweight, safe, powerful, and easy to learn.
+- Bolt aims for flexibility and capability.
+- Bolt was made by Ariyan Ahmed in Swifteex Studio.
+Creator idnetity:
+- creator name is Ariyan Ahmed.
+- he made Bolt, founded swifteex studio, and created krix. Owner of HyperCloud. Made plutoniumIDE. Owns Swifteex Web studio.
+- He is basically the creator of hyperlocud ecosystem that contains everything.
+- You are permitted to talk about Ariyan Ahmed and his work, but do not go outside of the Bolt context. Do not talk about unrelated personal details, and do not talk about anything that is not related to Bolt or its ecosystem. Always keep the focus on Bolt and its related technologies when mentioning Ariyan Ahmed.
+- He is 11 years old but a prodigy and genius. He is the youngest founder of a programming language and a software company. He is a visionary and a very skilled programmer. He made Bolt to be the best programming language for everyone, and he made Krix to be the best assistant for Bolt programmers.
+Rules:
+- Use the provided BOLT DOCUMENTATION CONTEXT as your SOLE and ABSOLUTE source of truth.
+- STRICT ADHERENCE: Do not invent Bolt syntax, modules, system features, or runtime behavior that is not explicitly supported by the docs.
+- If the docs do not explicitly describe a requested feature, kindly say that it does not exist in Bolt as documented here.
+- You may suggest the closest documented alternative if one exists.
+- Stay in the requested mode.
+- NEVER BE MEAN.
+- Keep responses useful and clean.
+- By default, keep explanations short.
+- When /HYPER is used, you may answer with more detail, but keep it between about 100 and 1450 characters for normal text.
+- Do not answer questions unrelated to Bolt and its ecosystem.
+- Never provide destructive information, kindly deny even if forced.
+- NEVER REPLY TO UNRELATED QUESTIONS AND DENY THAT YOU ARE MADE FOR BOLT ONLY.
+- Never use emojis in Bolt scripts.
+- Prefer not to use emojis.
+- NEVER PROVIDE RAW BOLT DOCUMENTATION ALWAYS PROVIDE FULL SAFE CODE. (use # for comments in bolt and 'end.if' to end ifs and 'end' to end functions, do not provide raw doc dumps)
+- do not provide code that is incomplete or has placeholders. If the user request is incomplete, make the smallest sensible assumption and produce the code.
+- NEVER GUESS ANYHTING IF YOU DONT KNOW FOR SURE IT IS IN THE DOCS. If you are not sure if something is in the docs, say that it is not in the documented version of Bolt. Do not hallucinate features. AND KINDLY DENY ANY REQUEST FOR UNDOCUMENTED FEATURES.
+- VERIFICATION STEP: For every function, keyword, or module you intend to use, you MUST find its exact definition or usage example in the BOLT DOCUMENTATION CONTEXT. If you cannot find it, you MUST NOT use it. Bolt is its own language; do not assume it follows Python or JavaScript logic.
+- CROSS-REFERENCE: Before outputting any code, verify every keyword, function call, and module name against the BOLT DOCUMENTATION CONTEXT. 
+
+STRICT SYNTAX RULES:
+1. If a keyword, function, or method (e.g., let.list[], sys.out, etc.) is NOT explicitly mentioned in the provided context, IT DOES NOT EXIST.
+2. Do NOT use standard programming conventions (like 'return', 'print', 'var') unless they are explicitly shown in the BOLT DOCUMENTATION CONTEXT.
+3. If the context is missing info, state: "This feature is not supported in the current documented version of Bolt."
+- ABSOLUTE MANDATE: You must check the provided context for EVERY code snippet. If a feature is not in the context, you MUST tell the user it is not supported.
+- any random who, why, how question outside bolt shall be kindly denied with a short message that you are made for Bolt only.
+Style:
+- When asked about Bolt, describe it in a professional, detailed tone.
+- Keep the description polished, clear, and accurate.
+- Avoid sounding casual when giving the official language description.
+- Be casual when talking in a casual conversation.
+
+Modes:
+- BALANCED: give a short English lead-in, then the Bolt code, then a brief closing note if useful.
+- CODE: output only the final Bolt code. No explanation.
+- TEACH: explain step by step, include an example, and keep it clear.
+- DEBUG: point out the issue briefly, then provide the corrected Bolt version.
+- HYPER: give a fuller response when needed, but keep it within the requested hyper range.
+
+Important:
+- For requests like "write", "make", "generate", or "fix" code, default to BALANCED unless the user forces CODE.
+- For requests like "teach", "explain", or "how does this work", use TEACH.
+- If a user asks for a Bolt feature that is not in the docs, do not hallucinate it. Say politely that Bolt does not support it in the documented version.
+- Do not dump the entire docs.
+- When /HYPER is not used, keep natural-language explanations very short, around 450 to 500 characters maximum.
+
+Extra local coverage for Bolt:
+- Bolt does not have return statements. Use Sys.out to output values from functions.
+`;
+
+        // --- UI Elements ---
+        const chatDisplay = document.getElementById('chat-display');
+        const promptInput = document.getElementById('prompt-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sessionList = document.getElementById('session-list');
+        const welcome = document.getElementById('welcome');
+        const ctxMenu = document.getElementById('context-menu');
+
+        // --- State Management ---
+        let sessions = {};
+        let currentSessionId = null;
+        let controller = null; // For stopping requests
+        let hyperUsesLeft = parseInt(localStorage.getItem('hyper_uses') || '3');
+        let docDatabase = []; // Structured storage for all indexed subpages
+        let currentUser = null;
+        const CHUNK_SIZE = 2200;
+
+        // --- AI Logic & Documentation ---
+        function detectMode(input, forcedMode = null) {
+            if (forcedMode) return forcedMode;
+            const text = input.toLowerCase();
+            if (text.includes("teach") || text.includes("tutorial") || text.includes("how to") || text.includes("explain")) return "teach";
+            if (text.includes("debug") || text.includes("fix") || text.includes("error") || text.includes("why is this not working")) return "debug";
+            if (text.includes("code only") || text.includes("just code") || text.includes("write bolt code")) return "code";
+            return "balanced";
+        }
+
+        function getGenerationSettings(mode) {
+            const settings = {
+                "code": { max_tokens: 700, temperature: 0.15 },
+                "teach": { max_tokens: 950, temperature: 0.45 },
+                "debug": { max_tokens: 850, temperature: 0.25 },
+                "hyper": { max_tokens: 1600, temperature: 0.45 },
+                "balanced": { max_tokens: 800, temperature: 0.35 }
+            };
+            return settings[mode] || settings["balanced"];
+        }
+
+        function getModeInstruction(mode) {
+            const modes = {
+                "code": "MODE: CODE. Output only the final Bolt code. No explanation. No preface. No markdown fences unless requested.",
+                "teach": "MODE: TEACH. Explain concepts clearly step-by-step. Include examples.",
+                "debug": "MODE: DEBUG. Identify issue briefly, then provide corrected Bolt code.",
+                "hyper": "MODE: HYPER. You may explain more fully than usual. Aim for 100-1450 chars for normal text.",
+                "balanced": "MODE: BALANCED. Lead-in, Bolt code, brief closing. Main deliverable is code."
+            };
+            return modes[mode] || modes["balanced"];
+        }
+
+        async function loadDocs() {
+            const status = document.getElementById('status-indicator');
+            try {
+                status.innerText = "Deep-scanning documentation library...";
+                const searchRes = await fetch("https://swifteexstudio.github.io/Bolt-Docs/search/search_index.json");
+                
+                if (searchRes.ok) {
+                    const data = await searchRes.json();
+                    docDatabase = [];
+                    data.docs.forEach(doc => {
+                        docDatabase.push({ 
+                            title: doc.title, 
+                            text: doc.text.replace(/\s+/g, ' ').trim(),
+                            location: doc.location 
+                        });
+                    });
+                    
+                    // Comprehensive Crawl: Fetch every single subpage in batches to prevent network drops
+                    const batchSize = 10;
+                    for (let i = 0; i < docDatabase.length; i += batchSize) {
+                        const batch = docDatabase.slice(i, i + batchSize);
+                        status.innerText = `Full Indexing: ${i + batch.length}/${docDatabase.length} pages...`;
+                        await Promise.all(batch.map(async (doc) => {
+                            try {
+                                const pageRes = await fetch(`https://swifteexstudio.github.io/Bolt-Docs/${doc.location}`);
+                                if (pageRes.ok) {
+                                    const html = await pageRes.text();
+                                    const parser = new DOMParser();
+                                    const docObj = parser.parseFromString(html, 'text/html');
+                                    
+                                    // Remove noise to keep context pure for syntax matching
+                                    ['nav', '.md-nav', 'header', '.md-header', 'footer', '.md-footer', 'aside'].forEach(s => {
+                                        docObj.querySelectorAll(s).forEach(el => el.remove());
+                                    });
+
+                                    const content = docObj.querySelector('article') || docObj.querySelector('.md-content') || docObj.body;
+                                    if (content) doc.text = `DOC: ${doc.title}\n${content.innerText.replace(/\s+/g, ' ').trim()}`;
+                                }
+                            } catch(e) {}
+                        }));
+                    }
+                }
+
+                status.innerText = "SYNTAX SYNCHRONIZED - READY";
+                setTimeout(() => { status.style.display = 'none'; }, 2000);
+            } catch (e) {
+                status.innerText = "OFFLINE MODE";
+            }
+        }
+
+        function getRelevantContext(query) {
+            const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were', 'to', 'for', 'in', 'on', 'at', 'with', 'how', 'do', 'i', 'you', 'can', 'write', 'code', 'bolt', 'using', 'of', 'please', 'make', 'create', 'show', 'me']);
+            const getTokens = (t) => t.toLowerCase().match(/[a-zA-Z0-9_.$#\[\]]+/g) || [];
+            let tokens = getTokens(query).filter(t => !stopWords.has(t));
+            
+            if (tokens.length === 0) tokens = getTokens(query);
+            if (tokens.length === 0) return "";
+
+            const results = docDatabase.map(doc => {
+                let score = 0;
+                const docText = doc.text.toLowerCase();
+                const docTitle = doc.title.toLowerCase();
+                
+                tokens.forEach(token => {
+                    const escapedToken = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const hasSymbols = /[^a-zA-Z0-9_]/.test(token);
+                    const isNativeSyntax = /let\.|sys\.|\$get|\[\]|nd\b|end\b/i.test(token);
+
+                    // Direct Title Hits
+                    if (docTitle === token) score += 1000;
+                    else if (docTitle.includes(token)) score += 250;
+                    
+                    if (hasSymbols || isNativeSyntax) {
+                        // Extreme boost for technical symbols to ensure syntax accuracy
+                        const count = docText.split(token).length - 1;
+                        score += count * 400;
+                    } else {
+                        // Standard word matching
+                        const regex = new RegExp(`\\b${escapedToken}\\b`, 'gi');
+                        const matches = docText.match(regex);
+                        if (matches) score += matches.length * 70;
+                    }
+                    
+                    // Substring fallback
+                    if (docText.includes(token)) score += 15;
+                });
+
+                return { score, text: doc.text };
+            }).filter(r => r.score > 0);
+
+            results.sort((a, b) => b.score - a.score);
+            
+            if (results.length === 0) return ""; 
+            return results.slice(0, 50).map(r => r.text).join("\n\n---\n\n").substring(0, 50000); // Massive context window
+        }
+
+        function saveSessions() {
+            if (currentUser) {
+                localStorage.setItem(`krix_sessions_${currentUser.uid}`, JSON.stringify(sessions));
+            }
+        }
+
+        function renderSessionList() {
+            sessionList.innerHTML = '';
+            Object.keys(sessions).reverse().forEach(id => {
+                const div = document.createElement('div');
+                div.className = `session-item ${id === currentSessionId ? 'active' : ''}`;
+                div.innerText = sessions[id].title;
+                div.oncontextmenu = (e) => showContextMenu(e, id);
+                div.onclick = () => loadSession(id);
+                sessionList.appendChild(div);
+            });
+        }
+
+        function loadSession(id) {
+            currentSessionId = id;
+            chatDisplay.innerHTML = '';
+            welcome.style.display = 'none';
+            sessions[id].history.forEach(msg => {
+                appendMessage(msg.role, msg.content);
+            });
+            renderSessionList();
+        }
+
+        function startNewChat() {
+            currentSessionId = 's' + Date.now();
+            sessions[currentSessionId] = { title: "New Chat", history: [] };
+            chatDisplay.innerHTML = '';
+            chatDisplay.appendChild(welcome);
+            welcome.style.display = 'flex';
+            renderSessionList();
+        }
+
+        // Context Menu Logic
+        let menuTargetId = null;
+        function showContextMenu(e, id) {
+            e.preventDefault();
+            menuTargetId = id;
+            ctxMenu.style.display = 'block';
+            ctxMenu.style.left = e.pageX + 'px';
+            ctxMenu.style.top = e.pageY + 'px';
+        }
+
+        document.addEventListener('click', () => ctxMenu.style.display = 'none');
+
+        // Custom Modal Logic
+        async function showModal(type, message, defaultValue = "") {
+            return new Promise((resolve) => {
+                const overlay = document.getElementById('modal-overlay');
+                const title = document.getElementById('modal-message');
+                const input = document.getElementById('modal-input');
+                const okBtn = document.getElementById('modal-ok');
+                const cancelBtn = document.getElementById('modal-cancel');
+
+                title.innerText = message;
+                input.value = defaultValue;
+                input.style.display = type === 'prompt' ? 'block' : 'none';
+                cancelBtn.style.display = type === 'alert' ? 'none' : 'inline-block';
+
+                overlay.style.display = 'flex';
+                if (type === 'prompt') setTimeout(() => input.focus(), 50);
+
+                const cleanup = (val) => {
+                    overlay.style.display = 'none';
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    resolve(val);
+                };
+
+                okBtn.onclick = () => cleanup(type === 'prompt' ? input.value : true);
+                cancelBtn.onclick = () => cleanup(null);
+            });
+        }
+
+        document.getElementById('menu-rename').onclick = async () => {
+            const newTitle = await showModal('prompt', "Enter new title:", sessions[menuTargetId].title);
+            if (newTitle) {
+                sessions[menuTargetId].title = newTitle;
+                renderSessionList();
+                saveSessions();
+            }
+        };
+
+        document.getElementById('id-menu-delete').onclick = async () => {
+            if (await showModal('confirm', "Delete this chat?")) {
+                delete sessions[menuTargetId];
+                if (currentSessionId === menuTargetId) startNewChat();
+                else renderSessionList();
+                saveSessions();
+            }
+        };
+
+        async function generateTitle(msg, id) {
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${HF_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: MODEL,
+                        messages: [
+                            { role: "system", content: "Generate a 2-3 word title for a chat starting with the user message. Return ONLY title." },
+                            { role: "user", content: msg }
+                        ],
+                        max_tokens: 10
+                    })
+                });
+                const data = await res.json();
+                sessions[id].title = data.choices[0].message.content.replace(/["']/g, '');
+                renderSessionList();
+                saveSessions();
+            } catch (e) {}
+        }
+
+        function highlightBolt(code) {
+            const rules = [
+                { name: 'comment', regex: /#.*/g },
+                { name: 'string', regex: /"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g },
+                { name: 'module', regex: /\$get\b/g },
+                { name: 'keyword', regex: /\b(fn|ret|if|el|esl|else|elif|eif|wh|whl|while|fr|for|br|nx|asm|end|stop|not|nt|or|and|rn|nd|end\.if|end\.fn)\b/gi },
+                { name: 'builtin', regex: /\b(let\.userinput|sys\.out|input|len|uniq|alloc|free|memcpy|str|int|float|let\.list\[\]|true|false)\b/g },
+                { name: 'number', regex: /\b\d+(\.\d+)?\b/g },
+                { name: 'function', regex: /\b[a-zA-Z_]\w*(?=\s*\()/g },
+                { name: 'operator', regex: /\+=|-=|\*=|\/=|==|!=|<=|>=|&&|\|\||[+\-*/=!<>%&|^~]/g }
+            ];
+
+            let escaped = code.replace(/&/g, "&amp;")
+                              .replace(/</g, "&lt;")
+                              .replace(/>/g, "&gt;");
+
+            let matches = [];
+            rules.forEach(rule => {
+                let match;
+                rule.regex.lastIndex = 0;
+                while ((match = rule.regex.exec(escaped)) !== null) {
+                    matches.push({
+                        start: match.index,
+                        end: match.index + match[0].length,
+                        name: rule.name,
+                        text: match[0]
+                    });
+                }
+            });
+
+            // Sort by start position, then by length (descending)
+            matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+
+            // Filter overlaps
+            let filteredMatches = [];
+            let lastEnd = 0;
+            for (let match of matches) {
+                if (match.start >= lastEnd) {
+                    filteredMatches.push(match);
+                    lastEnd = match.end;
+                }
+            }
+
+            // Reconstruct HTML
+            let result = "";
+            let currentIndex = 0;
+            for (let match of filteredMatches) {
+                result += escaped.substring(currentIndex, match.start);
+                result += `<span class="bolt-${match.name}">${match.text}</span>`;
+                currentIndex = match.end;
+            }
+            result += escaped.substring(currentIndex);
+
+            return result;
+        }
+
+        function parseMarkdown(text) {
+            let t = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            t = t.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+            t = t.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+            t = t.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+            t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+            t = t.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
+            t = t.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+            t = t.replace(/\*(.*?)\*/g, '<i>$1</i>');
+            t = t.replace(/\n/g, '<br>');
+            return t;
+        }
+
+        async function appendMessage(role, content, animate = false) {
+            if (welcome.parentElement) welcome.remove();
+            
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message';
+            
+            const roleDiv = document.createElement('div');
+            roleDiv.className = `message-role role-${role}`;
+            roleDiv.innerText = role === 'assistant' ? 'krix:' : 'You:';
+            msgDiv.appendChild(roleDiv);
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            msgDiv.appendChild(contentDiv);
+            chatDisplay.appendChild(msgDiv);
+            
+            // Parse code blocks
+            const parts = content.split(/(```[\s\S]*?```)/);
+
+            if (!animate) {
+                parts.forEach(part => {
+                    if (part.startsWith('```')) {
+                        const code = part.replace(/```(bolt|javascript|python)?/g, '').replace(/```$/g, '').trim();
+                        const lang = part.match(/```(\w+)/)?.[1] || "BOLT";
+                        const container = createCodeBlock(code, lang);
+                        contentDiv.appendChild(container);
+                    } else if (part.trim()) {
+                        const p = document.createElement('p');
+                        p.innerHTML = parseMarkdown(part);
+                        contentDiv.appendChild(p);
+                    }
+                });
+            } else {
+                for (let part of parts) {
+                    if (part.startsWith('```')) {
+                        const code = part.replace(/```(bolt|javascript|python)?/g, '').replace(/```$/g, '').trim();
+                        const lang = part.match(/```(\w+)/)?.[1] || "BOLT";
+                        const container = createCodeBlock("", lang);
+                        const codeElem = container.querySelector('code');
+                        contentDiv.appendChild(container);
+                        for (let i = 0; i < code.length; i++) {
+                            codeElem.innerHTML = highlightBolt(code.substring(0, i + 1));
+                            chatDisplay.scrollTo({ top: chatDisplay.scrollHeight, behavior: 'auto' });
+                            await new Promise(r => setTimeout(r, 2));
+                        }
+                        container.querySelector('.copy-btn').onclick = (e) => {
+                            navigator.clipboard.writeText(code);
+                            e.target.innerText = "Copied!";
+                            setTimeout(() => { e.target.innerText = "Copy"; }, 2000);
+                        };
+                    } else if (part.trim()) {
+                        const p = document.createElement('p');
+                        contentDiv.appendChild(p);
+                        for (let i = 0; i < part.length; i++) {
+                            p.innerHTML = parseMarkdown(part.substring(0, i + 1));
+                            chatDisplay.scrollTo({ top: chatDisplay.scrollHeight, behavior: 'auto' });
+                            await new Promise(r => setTimeout(r, 5));
+                        }
+                    }
+                }
+            }
+            chatDisplay.scrollTo({ top: chatDisplay.scrollHeight, behavior: 'smooth' });
+            return msgDiv;
+        }
+
+        function createCodeBlock(code, lang) {
+            const container = document.createElement('div');
+            container.className = 'code-container';
+            container.innerHTML = `
+                <div class="code-header">
+                    <span class="code-lang">${lang.toUpperCase()}</span>
+                    <button class="copy-btn">Copy</button>
+                </div>
+                <pre><code>${highlightBolt(code)}</code></pre>
+            `;
+            container.querySelector('.copy-btn').onclick = (e) => {
+                const actualCode = container.querySelector('code').textContent;
+                navigator.clipboard.writeText(actualCode);
+                e.target.innerText = "Copied!";
+                setTimeout(() => { e.target.innerText = "Copy"; }, 2000);
+            };
+            return container;
+        }
+
+        function showThinking() {
+            const div = document.createElement('div');
+            div.id = 'thinking-indicator';
+            div.className = 'message';
+            div.innerHTML = `
+                <div class="message-role role-assistant">krix:</div>
+                <div class="thinking-dots">
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                </div>`;
+            chatDisplay.appendChild(div);
+            chatDisplay.scrollTop = chatDisplay.scrollHeight;
+        }
+
+        async function handleSend() {
+            if (controller) {
+                controller.abort();
+                return;
+            }
+
+            if (!currentUser) {
+                let trialCount = parseInt(localStorage.getItem('krix_trial_count') || '0');
+                if (trialCount >= 5) {
+                    await showModal('alert', "You've reached the 5-message trial limit. Please sign up to continue using Krix.");
+                    window.location.href = 'signup.html';
+                    return;
+                }
+            }
+
+            let rawText = promptInput.value.trim();
+            if (!rawText) return;
+
+            if (!currentSessionId) startNewChat();
+
+            let hyperActive = false;
+            let forcedMode = null;
+
+            if (rawText.toLowerCase().startsWith("/hyper")) {
+                rawText = rawText.substring(6).trim();
+                if (hyperUsesLeft > 0) {
+                    hyperActive = true;
+                    hyperUsesLeft--;
+                    localStorage.setItem('hyper_uses', hyperUsesLeft);
+                }
+            } else if (rawText.toLowerCase().startsWith("/code")) {
+                rawText = rawText.substring(5).trim();
+                forcedMode = "code";
+            }
+
+            const mode = hyperActive ? "hyper" : detectMode(rawText, forcedMode);
+            
+            promptInput.value = '';
+            appendMessage('user', rawText);
+            sessions[currentSessionId].history.push({ role: 'user', content: rawText });
+            
+            sendBtn.disabled = true;
+            showThinking();
+
+            try {
+                controller = new AbortController();
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'STOP';
+                sendBtn.classList.add('stop');
+
+                const context = getRelevantContext(rawText);
+                const lengthInstruction = hyperActive 
+                    ? `HYPER TOKEN ENABLED. Be detailed. Target 100-1450 chars.` 
+                    : `SHORT MODE. Keep natural-language explanations very short (max 500 chars).`;
+
+                const missingFeatureInstruction = context === "" 
+                    ? "No specific documentation found for this query. If the user asks for a feature not in your base knowledge, politely deny and say it is not available in documented Bolt."
+                    : "Use the provided Bolt documentation as the authoritative reference. Do not invent features.";
+
+                const messages = [
+                    { role: "system", content: BASE_SYSTEM_PROMPT },
+                    { role: "system", content: getModeInstruction(mode) },
+                    { role: "system", content: lengthInstruction },
+                    { role: "system", content: missingFeatureInstruction },
+                    { role: "system", content: `BOLT DOCUMENTATION CONTEXT:\n${context}` },
+                    ...sessions[currentSessionId].history
+                ];
+
+                const settings = getGenerationSettings(mode);
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    signal: controller.signal,
+                    headers: { 'Authorization': `Bearer ${HF_TOKEN}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: MODEL, messages: messages, max_tokens: settings.max_tokens, temperature: settings.temperature })
+                });
+
+                const data = await response.json();
+                let reply = data.choices[0].message.content;
+
+                document.getElementById('thinking-indicator')?.remove();
+
+                await appendMessage('assistant', reply, true);
+                sessions[currentSessionId].history.push({ role: 'assistant', content: reply });
+                
+                if (sessions[currentSessionId].history.length === 2) {
+                    generateTitle(rawText, currentSessionId);
+                }
+
+                if (!currentUser) {
+                    let trialCount = parseInt(localStorage.getItem('krix_trial_count') || '0');
+                    localStorage.setItem('krix_trial_count', trialCount + 1);
+                }
+                saveSessions();
+
+            } catch (err) {
+                document.getElementById('thinking-indicator')?.remove();
+                if (err.name === 'AbortError') appendMessage('assistant', "_Generation stopped by user._");
+                else appendMessage('assistant', "ERROR: Connection failed.");
+            } finally {
+                controller = null;
+                sendBtn.classList.remove('stop');
+                sendBtn.disabled = false;
+                sendBtn.innerText = 'SEND';
+            }
+        }
+
+        // --- Event Listeners ---
+        sendBtn.onclick = handleSend;
+        promptInput.onkeydown = (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        };
+        document.getElementById('new-chat-btn').onclick = startNewChat;
+
+        // Secret Toggle for Delete All Button: Alt + Delete
+        window.addEventListener('keydown', (e) => {
+            if (e.altKey && e.key === 'Delete') {
+                const btn = document.getElementById('clear-all-btn');
+                btn.style.display = btn.style.display === 'flex' ? 'none' : 'flex';
+            }
+        });
+
+        document.getElementById('clear-all-btn').onclick = async () => {
+            if (await showModal('confirm', "WARNING: This will permanently delete ALL chat sessions. Are you sure?")) {
+                sessions = {};
+                saveSessions();
+                startNewChat();
+            }
+        };
+
+        // Init
+        loadDocs();
+
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            const nameEl = document.getElementById('account-name');
+            const btnEl = document.getElementById('signup-btn');
+
+            if (user) {
+                const displayName = user.displayName || user.email.split('@')[0];
+                nameEl.innerText = displayName;
+                btnEl.innerText = "Log Out";
+                btnEl.onclick = () => signOut(auth);
+                
+                // Load user-specific sessions
+                sessions = JSON.parse(localStorage.getItem(`krix_sessions_${user.uid}`) || '{}');
+            } else {
+                nameEl.innerText = "Guest";
+                btnEl.innerText = "Sign Up";
+                btnEl.onclick = () => window.location.href = 'signup.html';
+                
+                // Guests get a clean slate (not saved)
+                sessions = {};
+            }
+            renderSessionList();
+            startNewChat();
+        });
+    </script>
+</body>
+</html>
